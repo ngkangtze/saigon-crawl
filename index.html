@@ -145,16 +145,90 @@
   }
   .mapToggle button:hover{border-color:var(--cream);}
   .mapToggle button:focus-visible{outline:2px solid var(--cream); outline-offset:2px;}
+  .mapBtns{display:flex;gap:8px;flex-shrink:0;}
 
   #map{
     width:100%;
     height:320px;
     border-radius:var(--radius);
-    margin-bottom:18px;
+    margin-bottom:14px;
     display:none;
     border:1px solid var(--line);
   }
   #map.open{display:block;}
+
+  #directions{
+    display:none;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    margin-bottom:18px;
+  }
+  #directions.open{display:block;}
+  #directions .dHeader{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom:6px;
+  }
+  #directions .name{
+    font-family:var(--font-display);
+    font-size:15px;
+  }
+  #directions .dSummary{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:8px;
+  }
+  #directions .dNote{
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.45;
+  }
+  #directions ol{
+    margin:0;
+    padding-left:18px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  #directions li{font-size:13px;line-height:1.4;}
+  #directions .dClose{
+    flex-shrink:0;
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    cursor:pointer;
+    text-decoration:underline;
+  }
+  #directions .dClose:focus-visible{outline:2px solid var(--cream); outline-offset:2px;}
+
+  /* you-are-here marker */
+  .me-marker{position:relative;width:18px;height:18px;}
+  .me-dot{
+    position:absolute;
+    top:3px;left:3px;width:12px;height:12px;
+    border-radius:50%;
+    background:#4da3ff;
+    border:2px solid #fff;
+    box-shadow:0 0 0 2px rgba(0,0,0,.3);
+  }
+  .me-pulse{
+    position:absolute;
+    inset:-8px;
+    border-radius:50%;
+    background:rgba(77,163,255,.35);
+    animation:meePulse 1.8s ease-out infinite;
+  }
+  @keyframes meePulse{
+    0%{transform:scale(.35);opacity:.85;}
+    100%{transform:scale(1.7);opacity:0;}
+  }
 
   .list{
     display:flex;
@@ -240,8 +314,13 @@
     color:var(--muted);
     line-height:1.45;
   }
-  .navigate{
+  .actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
     margin-top:6px;
+  }
+  .navigate{
     align-self:flex-start;
     display:inline-flex;
     align-items:center;
@@ -259,6 +338,26 @@
   .navigate:hover{opacity:.85;}
   .navigate:focus-visible{outline:2px solid var(--cream); outline-offset:3px;}
   .navigate:active{transform:scale(.97);}
+
+  .route-btn{
+    align-self:flex-start;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--cream);
+    background:transparent;
+    border:1px solid var(--line);
+    padding:8px 14px;
+    border-radius:7px;
+    cursor:pointer;
+    transition:border-color .15s ease, transform .12s ease;
+  }
+  .route-btn:hover{border-color:var(--cream);}
+  .route-btn:focus-visible{outline:2px solid var(--cream); outline-offset:3px;}
+  .route-btn:active{transform:scale(.97);}
 
   .card[data-cat="home"] .stub{color:var(--jade);}
   .card[data-cat="fashion"] .stub{color:var(--magenta);}
@@ -307,16 +406,20 @@
   </header>
 
   <div class="mapToggle">
-    <p>See everything plotted on one map.</p>
-    <button id="toggleMap">Show map</button>
+    <p>See everything on one map, with your live position.</p>
+    <div class="mapBtns">
+      <button id="locateBtn">Locate me</button>
+      <button id="toggleMap">Show map</button>
+    </div>
   </div>
   <div id="map"></div>
+  <div id="directions"></div>
 
   <div class="list" id="list"></div>
 
   <footer>
     Distances are straight-line from home base, not walking distance.<br>
-    Tap "Navigate" to open turn-by-turn directions in your maps app.
+    "Navigate ↗" opens full turn-by-turn directions in your maps app. "Route here" draws a walking route right on this page, using your live location and a free public routing service — it can fall back to a straight-line estimate if that service is unreachable.
   </footer>
 
 </div>
@@ -389,7 +492,7 @@
 
   const list = document.getElementById("list");
 
-  function cardHTML(p){
+  function cardHTML(p, idx){
     const distLabel = p.cat === "home" ? "home base" : `${p.dist.toFixed(1)} km from hotel`;
     return `
       <article class="card" data-cat="${p.cat}">
@@ -402,12 +505,21 @@
           ${p.sub ? `<div class="sub">${p.sub}</div>` : ""}
           <div class="meta"><span class="area">${p.area}</span><span>${distLabel}</span></div>
           <div class="notes">${p.notes}<br>${p.address}</div>
-          <a class="navigate" href="${navUrl(p)}" target="_blank" rel="noopener">Navigate ↗</a>
+          <div class="actions">
+            <a class="navigate" href="${navUrl(p)}" target="_blank" rel="noopener">Navigate ↗</a>
+            <button class="route-btn" data-idx="${idx}" type="button">Route here</button>
+          </div>
         </div>
       </article>`;
   }
 
-  list.innerHTML = DATA.map(cardHTML).join("");
+  list.innerHTML = DATA.map((p, idx) => cardHTML(p, idx)).join("");
+
+  list.addEventListener("click", (e) => {
+    const btn = e.target.closest(".route-btn");
+    if (!btn) return;
+    routeTo(DATA[Number(btn.dataset.idx)]);
+  });
 
   document.getElementById("statHome").textContent = DATA.filter(p=>p.cat==="home").length;
   document.getElementById("statFashion").textContent = DATA.filter(p=>p.cat==="fashion").length;
@@ -427,38 +539,239 @@
   });
 
   let map, mapInitialized = false;
+  let me = null, meMarker = null, meAccuracyCircle = null;
+  let watchId = null, pendingFixCallbacks = [];
+  let routeLine = null, destMarker = null;
+
+  function initMap(){
+    if (mapInitialized) return;
+    const el = document.getElementById("map");
+    if (typeof L === "undefined") {
+      el.innerHTML = '<p style="padding:16px;color:var(--muted);font-family:var(--font-mono);font-size:12.5px;">Map library didn\'t load — check your connection, or view this page directly in a browser tab.</p>';
+      return;
+    }
+    try {
+      map = L.map("map", { scrollWheelZoom:false }).setView([HOME.lat, HOME.lng], 14);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19
+      }).addTo(map);
+      DATA.forEach((p, idx) => {
+        const icon = L.divIcon({
+          className: "",
+          html: `<span style="display:block;width:14px;height:14px;border-radius:50%;background:${PIN_COLOR[p.cat]};border:2px solid #12131a;"></span>`,
+          iconSize: [14,14]
+        });
+        L.marker([p.lat, p.lng], { icon }).addTo(map)
+          .bindPopup(`<div class="popup-name">${p.name}</div><a class="popup-link" href="${navUrl(p)}" target="_blank" rel="noopener">Navigate ↗</a> &middot; <a class="popup-link" href="#" onclick="routeToIndex(${idx});return false;">Route here</a>`);
+      });
+      mapInitialized = true;
+      setTimeout(() => map.invalidateSize(), 50);
+    } catch (err) {
+      el.innerHTML = '<p style="padding:16px;color:var(--muted);font-family:var(--font-mono);font-size:12.5px;">Couldn\'t load the map right now.</p>';
+      console.error(err);
+    }
+  }
+
+  function ensureMapOpen(){
+    const el = document.getElementById("map");
+    if (!el.classList.contains("open")) {
+      el.classList.add("open");
+      document.getElementById("toggleMap").textContent = "Hide map";
+    }
+    initMap();
+  }
+
   document.getElementById("toggleMap").addEventListener("click", (e) => {
     const el = document.getElementById("map");
     el.classList.toggle("open");
     e.target.textContent = el.classList.contains("open") ? "Hide map" : "Show map";
-    if (el.classList.contains("open") && !mapInitialized) {
-      mapInitialized = true;
-      if (typeof L === "undefined") {
-        el.innerHTML = '<p style="padding:16px;color:var(--muted);font-family:var(--font-mono);font-size:12.5px;">Map library didn\'t load — check your connection, or view this page directly in a browser tab.</p>';
-        return;
-      }
-      try {
-        map = L.map("map", { scrollWheelZoom:false }).setView([HOME.lat, HOME.lng], 14);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap contributors",
-          maxZoom: 19
-        }).addTo(map);
-        DATA.forEach(p => {
-          const icon = L.divIcon({
-            className: "",
-            html: `<span style="display:block;width:14px;height:14px;border-radius:50%;background:${PIN_COLOR[p.cat]};border:2px solid #12131a;"></span>`,
-            iconSize: [14,14]
-          });
-          L.marker([p.lat, p.lng], { icon }).addTo(map)
-            .bindPopup(`<div class="popup-name">${p.name}</div><a class="popup-link" href="${navUrl(p)}" target="_blank" rel="noopener">Navigate ↗</a>`);
-        });
-        setTimeout(() => map.invalidateSize(), 50);
-      } catch (err) {
-        el.innerHTML = '<p style="padding:16px;color:var(--muted);font-family:var(--font-mono);font-size:12.5px;">Couldn\'t load the map right now.</p>';
-        console.error(err);
+    if (el.classList.contains("open")) initMap();
+  });
+
+  // --- live "you are here" location ---
+
+  function locateMe(onFix){
+    if (!navigator.geolocation) {
+      showDirectionsMessage("Geolocation isn't supported in this browser.");
+      return;
+    }
+    ensureMapOpen();
+    if (onFix) pendingFixCallbacks.push(onFix);
+    if (watchId !== null) {
+      if (me) { map.setView([me.lat, me.lng], 16); flushPendingFixCallbacks(); }
+      return;
+    }
+    watchId = navigator.geolocation.watchPosition(
+      pos => {
+        me = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        renderMeMarker();
+        flushPendingFixCallbacks();
+      },
+      err => { handleGeoError(err); pendingFixCallbacks = []; },
+      { enableHighAccuracy:true, maximumAge:5000, timeout:15000 }
+    );
+  }
+
+  function flushPendingFixCallbacks(){
+    const cbs = pendingFixCallbacks;
+    pendingFixCallbacks = [];
+    cbs.forEach(cb => cb());
+  }
+
+  function renderMeMarker(){
+    if (!map || !me) return;
+    if (!meMarker) {
+      const icon = L.divIcon({
+        className: "",
+        html: '<div class="me-marker"><div class="me-pulse"></div><div class="me-dot"></div></div>',
+        iconSize: [18,18],
+        iconAnchor: [9,9]
+      });
+      meMarker = L.marker([me.lat, me.lng], { icon, zIndexOffset: 1000 }).addTo(map).bindPopup("You are here");
+      map.setView([me.lat, me.lng], 15);
+    } else {
+      meMarker.setLatLng([me.lat, me.lng]);
+    }
+    if (me.accuracy) {
+      if (!meAccuracyCircle) {
+        meAccuracyCircle = L.circle([me.lat, me.lng], { radius: me.accuracy, color:"#4da3ff", weight:1, fillColor:"#4da3ff", fillOpacity:.12 }).addTo(map);
+      } else {
+        meAccuracyCircle.setLatLng([me.lat, me.lng]).setRadius(me.accuracy);
       }
     }
-  });
+  }
+
+  function handleGeoError(err){
+    let msg = "Couldn't get your location.";
+    if (err.code === 1) msg = "Location permission denied — enable it in your browser's site settings to see your position on the map.";
+    else if (err.code === 2) msg = "Your location is unavailable right now.";
+    else if (err.code === 3) msg = "Location request timed out.";
+    showDirectionsMessage(msg);
+  }
+
+  document.getElementById("locateBtn").addEventListener("click", () => locateMe());
+
+  // --- in-page routing, with a straight-line fallback ---
+
+  function fetchWithTimeout(url, ms){
+    return Promise.race([
+      fetch(url),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))
+    ]);
+  }
+
+  function bearing(a, b){
+    const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+    const y = Math.sin(toRad(b.lng - a.lng)) * Math.cos(toRad(b.lat));
+    const x = Math.cos(toRad(a.lat)) * Math.sin(toRad(b.lat)) - Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lng - a.lng));
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  }
+
+  function compassLabel(deg){
+    const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+    return dirs[Math.round(deg / 22.5) % 16];
+  }
+
+  function clearRouteLayers(){
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  }
+
+  function addDestMarker(p){
+    if (destMarker) map.removeLayer(destMarker);
+    const icon = L.divIcon({
+      className: "",
+      html: `<span style="display:block;width:14px;height:14px;border-radius:50%;background:${PIN_COLOR[p.cat]};border:2px solid #12131a;"></span>`,
+      iconSize: [14,14]
+    });
+    destMarker = L.marker([p.lat, p.lng], { icon }).addTo(map);
+  }
+
+  function stepText(s){
+    const m = s.maneuver || {};
+    const verbs = {
+      depart:"Head out", arrive:"Arrive at your destination", turn:"Turn", "new name":"Continue",
+      merge:"Merge", "on ramp":"Take the ramp", "off ramp":"Take the exit", fork:"At the fork, keep",
+      "end of road":"At the end of the road, turn", roundabout:"At the roundabout, take the exit",
+      continue:"Continue"
+    };
+    const verb = verbs[m.type] || "Continue";
+    const mod = m.modifier ? ` ${m.modifier}` : "";
+    const road = s.name ? ` onto ${s.name}` : "";
+    return `${verb}${mod}${road}`.trim();
+  }
+
+  function showDirectionsLoading(name){
+    const panel = document.getElementById("directions");
+    panel.innerHTML = `<div class="dSummary">Finding a route to ${name}…</div>`;
+    panel.classList.add("open");
+  }
+
+  function showDirectionsMessage(msg){
+    const panel = document.getElementById("directions");
+    panel.innerHTML = `<div class="dNote">${msg}</div>`;
+    panel.classList.add("open");
+  }
+
+  function renderDirections(p, route){
+    const panel = document.getElementById("directions");
+    const km = (route.distance / 1000).toFixed(1);
+    const mins = Math.max(1, Math.round(route.duration / 60));
+    const steps = (route.legs[0].steps || []).map(stepText);
+    panel.innerHTML = `
+      <div class="dHeader"><span class="name">Walking to ${p.name}</span><button class="dClose" type="button">Close</button></div>
+      <div class="dSummary">${km} km &middot; about ${mins} min walking</div>
+      <ol>${steps.map(s => `<li>${s}</li>`).join("")}</ol>`;
+    panel.classList.add("open");
+    panel.querySelector(".dClose").addEventListener("click", () => panel.classList.remove("open"));
+  }
+
+  function renderStraightLineDirections(from, to){
+    const panel = document.getElementById("directions");
+    const km = haversineKm(from, to).toFixed(1);
+    const dir = compassLabel(bearing(from, to));
+    panel.innerHTML = `
+      <div class="dHeader"><span class="name">Heading to ${to.name}</span><button class="dClose" type="button">Close</button></div>
+      <div class="dSummary">${km} km, straight-line &middot; head ${dir}</div>
+      <div class="dNote">Couldn't reach the walking-route service, so this is a straight-line estimate rather than a street route. Use "Navigate ↗" for full directions.</div>`;
+    panel.classList.add("open");
+    panel.querySelector(".dClose").addEventListener("click", () => panel.classList.remove("open"));
+  }
+
+  async function fetchRoute(from, to){
+    showDirectionsLoading(to.name);
+    try {
+      const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true`;
+      const res = await fetchWithTimeout(url, 8000);
+      if (!res.ok) throw new Error("routing http " + res.status);
+      const data = await res.json();
+      if (data.code !== "Ok" || !data.routes || !data.routes.length) throw new Error("no route");
+      const route = data.routes[0];
+      const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+      clearRouteLayers();
+      routeLine = L.polyline(coords, { color:"#4da3ff", weight:4, opacity:.85 }).addTo(map);
+      addDestMarker(to);
+      map.fitBounds(routeLine.getBounds(), { padding:[30,30] });
+      renderDirections(to, route);
+    } catch (err) {
+      console.warn("Falling back to straight-line route:", err);
+      clearRouteLayers();
+      routeLine = L.polyline([[from.lat, from.lng],[to.lat, to.lng]], { color:"#4da3ff", weight:3, opacity:.75, dashArray:"6 8" }).addTo(map);
+      addDestMarker(to);
+      map.fitBounds(routeLine.getBounds(), { padding:[40,40] });
+      renderStraightLineDirections(from, to);
+    }
+  }
+
+  function routeTo(p){
+    ensureMapOpen();
+    document.getElementById("map").scrollIntoView({ behavior:"smooth", block:"center" });
+    showDirectionsLoading(p.name);
+    if (me) fetchRoute(me, p);
+    else locateMe(() => fetchRoute(me, p));
+  }
+
+  window.routeToIndex = idx => routeTo(DATA[idx]);
 </script>
 </body>
 </html>
