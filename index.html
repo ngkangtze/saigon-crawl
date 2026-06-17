@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Saigon Crawl — District 1 Navigator</title>
+<meta name="description" content="A self-guided navigator for a Ho Chi Minh City fashion and food crawl." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<style>
+  :root{
+    --ink:#12131a;
+    --paper:#1b1d29;
+    --paper-soft:#21232f;
+    --cream:#f4efe3;
+    --muted:rgba(244,239,227,.55);
+    --line:rgba(244,239,227,.14);
+    --jade:#3ddc97;
+    --magenta:#ff3e80;
+    --marigold:#ffc23e;
+    --violet:#9b5cff;
+    --radius:10px;
+    --font-display:'Archivo Black', sans-serif;
+    --font-body:'Work Sans', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--cream);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  a{color:inherit;}
+  button{font:inherit;}
+
+  .wrap{
+    max-width:640px;
+    margin:0 auto;
+    padding:0 18px 64px;
+    position:relative;
+  }
+
+  /* decorative ticket-roll strip */
+  .roll{
+    height:8px;
+    width:100%;
+    background-image:
+      radial-gradient(circle, var(--jade) 0 2px, transparent 2.5px),
+      radial-gradient(circle, var(--magenta) 0 2px, transparent 2.5px),
+      radial-gradient(circle, var(--marigold) 0 2px, transparent 2.5px);
+    background-size:48px 8px;
+    background-position:0 0, 16px 0, 32px 0;
+    background-repeat:repeat-x;
+    opacity:.9;
+  }
+
+  header{
+    position:sticky;
+    top:0;
+    z-index:20;
+    background:linear-gradient(180deg, var(--ink) 78%, transparent);
+    padding-top:22px;
+    padding-bottom:14px;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-size:clamp(28px, 8vw, 38px);
+    letter-spacing:.5px;
+    margin:0 0 6px;
+    line-height:1;
+  }
+  h1 span{color:var(--marigold);}
+  .tagline{
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.5;
+    margin:0 0 14px;
+    max-width:46ch;
+  }
+  .stats{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--muted);
+    margin:0 0 16px;
+    letter-spacing:.02em;
+  }
+  .stats b{color:var(--cream);font-weight:600;}
+
+  .pills{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:4px;
+    scrollbar-width:none;
+  }
+  .pills::-webkit-scrollbar{display:none;}
+  .pill{
+    flex:0 0 auto;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--muted);
+    border-radius:999px;
+    padding:8px 16px;
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    cursor:pointer;
+    transition:background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .pill:focus-visible{outline:2px solid var(--cream); outline-offset:2px;}
+  .pill[data-active="true"]{color:var(--ink); border-color:transparent;}
+  .pill[data-cat="all"][data-active="true"]{background:var(--cream);}
+  .pill[data-cat="home"][data-active="true"]{background:var(--jade);}
+  .pill[data-cat="fashion"][data-active="true"]{background:var(--magenta);}
+  .pill[data-cat="food"][data-active="true"]{background:var(--marigold);}
+  .pill[data-cat="nightlife"][data-active="true"]{background:var(--violet);}
+
+  .mapToggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin:18px 0 14px;
+    padding:12px 14px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+  }
+  .mapToggle p{margin:0;font-size:13px;color:var(--muted);}
+  .mapToggle button{
+    background:none;
+    border:1px solid var(--line);
+    color:var(--cream);
+    padding:8px 14px;
+    border-radius:999px;
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+    white-space:nowrap;
+  }
+  .mapToggle button:hover{border-color:var(--cream);}
+  .mapToggle button:focus-visible{outline:2px solid var(--cream); outline-offset:2px;}
+
+  #map{
+    width:100%;
+    height:320px;
+    border-radius:var(--radius);
+    margin-bottom:18px;
+    display:none;
+    border:1px solid var(--line);
+  }
+  #map.open{display:block;}
+
+  .list{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .card{
+    position:relative;
+    display:flex;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .card::before, .card::after{
+    content:"";
+    position:absolute;
+    width:14px;height:14px;
+    background:var(--ink);
+    border-radius:50%;
+    left:62px;
+  }
+  .card::before{top:-7px;}
+  .card::after{bottom:-7px;}
+
+  .stub{
+    flex:0 0 72px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:14px 4px;
+    border-right:2px dashed var(--line);
+    text-align:center;
+  }
+  .stub svg{width:24px;height:24px;}
+  .stub .code{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    color:var(--muted);
+    letter-spacing:.03em;
+  }
+
+  .body{
+    flex:1;
+    min-width:0;
+    padding:14px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .body .name{
+    font-family:var(--font-display);
+    font-size:16px;
+    line-height:1.25;
+    letter-spacing:.2px;
+  }
+  .body .sub{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:-4px;
+  }
+  .meta{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    flex-wrap:wrap;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--muted);
+  }
+  .meta .area{
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:1px 5px;
+    font-size:10px;
+  }
+  .notes{
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.45;
+  }
+  .navigate{
+    margin-top:6px;
+    align-self:flex-start;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    text-decoration:none;
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink);
+    background:var(--cream);
+    padding:8px 14px;
+    border-radius:7px;
+    transition:transform .12s ease, opacity .12s ease;
+  }
+  .navigate:hover{opacity:.85;}
+  .navigate:focus-visible{outline:2px solid var(--cream); outline-offset:3px;}
+  .navigate:active{transform:scale(.97);}
+
+  .card[data-cat="home"] .stub{color:var(--jade);}
+  .card[data-cat="fashion"] .stub{color:var(--magenta);}
+  .card[data-cat="food"] .stub{color:var(--marigold);}
+  .card[data-cat="nightlife"] .stub{color:var(--violet);}
+
+  footer{
+    margin-top:28px;
+    padding-top:18px;
+    border-top:1px solid var(--line);
+    color:var(--muted);
+    font-size:12px;
+    font-family:var(--font-mono);
+    line-height:1.6;
+  }
+
+  .leaflet-popup-content-wrapper{
+    background:var(--paper);
+    color:var(--cream);
+    border-radius:8px;
+  }
+  .leaflet-popup-tip{background:var(--paper);}
+  .popup-name{font-family:var(--font-display);font-size:13px;margin-bottom:4px;}
+  .popup-link{font-family:var(--font-mono);font-size:11px;color:var(--marigold);text-decoration:none;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important; animation:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="roll"></div>
+<div class="wrap">
+
+  <header>
+    <h1>SAIGON <span>CRAWL</span></h1>
+    <p class="tagline">A self-guided route through District 1's indie streetwear and street food, anchored at your hotel. Tap any stub to start walking directions.</p>
+    <p class="stats"><b id="statHome">0</b> stay &middot; <b id="statFashion">0</b> boutiques &middot; <b id="statFood">0</b> eats &middot; <b id="statNightlife">0</b> nightlife</p>
+    <div class="pills" id="pills">
+      <button class="pill" data-cat="all" data-active="true">All</button>
+      <button class="pill" data-cat="home">Home</button>
+      <button class="pill" data-cat="fashion">Fashion</button>
+      <button class="pill" data-cat="food">Food</button>
+      <button class="pill" data-cat="nightlife">Nightlife</button>
+    </div>
+  </header>
+
+  <div class="mapToggle">
+    <p>See everything plotted on one map.</p>
+    <button id="toggleMap">Show map</button>
+  </div>
+  <div id="map"></div>
+
+  <div class="list" id="list"></div>
+
+  <footer>
+    Distances are straight-line from home base, not walking distance.<br>
+    Tap "Navigate" to open turn-by-turn directions in your maps app.
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+  const HOME = { lat: 10.7816931, lng: 106.7055402 };
+
+  const ICONS = {
+    home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9.5a.5.5 0 0 0 .5.5H9a.5.5 0 0 0 .5-.5V15a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4.5a.5.5 0 0 0 .5.5h2.5a.5.5 0 0 0 .5-.5V10"/></svg>`,
+    fashion: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 8 6l-5 2 2 4 2-1v9h10v-9l2 1 2-4-5-2-1-2"/><path d="M9 4a3 3 0 0 0 6 0"/></svg>`,
+    food: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 0 16 0Z"/><path d="M4 11h16"/><path d="M9 4v3M12 3.5v3.5M15 4v3"/></svg>`,
+    nightlife: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-8 8-8-8Z"/><path d="M12 13v6"/><path d="M8 19h8"/></svg>`
+  };
+
+  const PIN_COLOR = { home:"#3ddc97", fashion:"#ff3e80", food:"#ffc23e", nightlife:"#9b5cff" };
+
+  const DATA = [
+    {cat:"home", code:"H-01", name:"The Solith Hotel", sub:"managed by Nicecy", address:"8B Lê Thánh Tôn, District 1", notes:"Home base for the trip.", lat:10.7816931, lng:106.7055402, area:"D1"},
+
+    {cat:"fashion", code:"S-01", name:"Rue Miche", address:"9B Phùng Khắc Khoan, District 1", notes:"Curated multi-brand boutique of Vietnamese labels. 4.9★", lat:10.7842217, lng:106.6980123, area:"D1"},
+    {cat:"fashion", code:"S-02", name:"Compound Garment", address:"158/5 Nguyễn Công Trứ, District 1", notes:"Saigon-rooted streetwear, unisex sizing.", lat:10.7689693, lng:106.7012332, area:"D1"},
+    {cat:"fashion", code:"S-03", name:"Hows", address:"38 Tôn Thất Thiệp, District 1", notes:"Nylon windbreakers, clean prints.", lat:10.7736116, lng:106.7024007, area:"D1"},
+    {cat:"fashion", code:"S-04", name:"Lider", address:"07 Tôn Thất Thiệp, District 1", notes:"Bold, trendy streetwear next to Hows.", lat:10.7734875, lng:106.7027113, area:"D1"},
+    {cat:"fashion", code:"S-05", name:"Hades", address:"152 Trần Quang Diệu, District 3", notes:"Pioneering Vietnamese streetwear, est. 2016.", lat:10.7907083, lng:106.6782391, area:"D3"},
+    {cat:"fashion", code:"S-06", name:"Trich Club", sub:"The New Playground", address:"26 Lý Tự Trọng, District 1", notes:"Inside an indie fashion incubator building.", lat:10.7782185, lng:106.701092, area:"D1"},
+    {cat:"fashion", code:"S-07", name:"Realm", sub:"REALM of", address:"Nam Kỳ Khởi Nghĩa, District 3", notes:"Minimal streetwear, self-expression focused.", lat:10.789507, lng:106.683864, area:"D3"},
+
+    {cat:"food", code:"E-01", name:"Bánh Bèo Chợ Bến Thành", address:"Phan Chu Trinh, District 1", notes:"Steamed rice cake stall inside the market.", lat:10.7726528, lng:106.6975357, area:"D1"},
+    {cat:"food", code:"E-02", name:"Bé Chè chợ Bến Thành", address:"Stall 1154-1130, West Gate 7, District 1", notes:"Vietnamese sweet dessert soup.", lat:10.7725451, lng:106.6978427, area:"D1"},
+    {cat:"food", code:"E-03", name:"Trung Nguyên Legend", address:"80 Đồng Khởi, District 1", notes:"Flagship Vietnamese coffeehouse.", lat:10.7752962, lng:106.704029, area:"D1"},
+    {cat:"food", code:"E-04", name:"Bún Riêu Gánh", address:"163 Lê Thánh Tôn, District 1", notes:"Iconic streetside crab noodle soup.", lat:10.773939, lng:106.6989509, area:"D1"},
+    {cat:"food", code:"E-05", name:"Pizza 4P's", address:"Saigon Centre, 65 Lê Lợi, District 1", notes:"Japanese-Italian fusion pizza.", lat:10.773164, lng:106.7006118, area:"D1"},
+    {cat:"food", code:"E-06", name:"Bánh Tráng Trộn Cart", address:"Tôn Thất Thiệp, District 1", notes:"Street cart, rice paper salad (approx. location).", lat:10.7731627, lng:106.7018605, area:"D1"},
+    {cat:"food", code:"E-07", name:"Cơm Tấm Ba Ghiền", address:"84 Đặng Văn Ngữ, Phú Nhuận", notes:"Famous broken rice with grilled pork chop.", lat:10.7944422, lng:106.6693599, area:"PN"},
+    {cat:"food", code:"E-08", name:"Bánh Mì Huynh Hoa", address:"26 Lê Thị Riêng, District 1", notes:"Iconic loaded bánh mì, expect a line.", lat:10.7715226, lng:106.6923968, area:"D1"},
+    {cat:"food", code:"E-09", name:"Bếp Mẹ Ỉn", address:"136/9 Lê Thánh Tôn, District 1", notes:"Michelin-recognized home-style Vietnamese food.", lat:10.7738567, lng:106.6980798, area:"D1"},
+    {cat:"food", code:"E-10", name:"Ốc Bắc 2", address:"35 Lý Tự Trọng, District 1", notes:"Northern-style snails and seafood.", lat:10.7792948, lng:106.7023758, area:"D1"},
+    {cat:"food", code:"E-11", name:"Phở Minh", address:"63/6 Pasteur, District 1", notes:"Tucked-away alley phở, Michelin Guide listed.", lat:10.774811, lng:106.700278, area:"D1"},
+    {cat:"food", code:"E-12", name:"Maison Marou", address:"167-169 Calmette, District 1", notes:"Premium Vietnamese-made chocolate and café.", lat:10.769494, lng:106.697821, area:"D1"},
+    {cat:"food", code:"E-13", name:"Hủ Tiếu Hồng Phát", address:"391 Võ Văn Tần, District 3", notes:"Hủ tiếu noodle soup, Michelin-mentioned.", lat:10.7705485, lng:106.6847932, area:"D3"},
+
+    {cat:"nightlife", code:"N-01", name:"Canalis Club", address:"264 Nam Kỳ Khởi Nghĩa, District 3", notes:"High-energy nightclub with live DJs and a lively crowd.", lat:10.7873557, lng:106.6868219, area:"D3"},
+    {cat:"nightlife", code:"N-02", name:"Indika Saigon", sub:"House of Curiosity", address:"43 Nguyễn Văn Giai, District 1", notes:"Bar, pizzeria and live-music venue with a laid-back vibe.", lat:10.791787, lng:106.6973366, area:"D1"},
+    {cat:"nightlife", code:"N-03", name:"Lush Saigon", sub:"Bar Lush", address:"2 Lý Tự Trọng, District 1", notes:"Long-running nightclub known for trance and techno nights.", lat:10.782786, lng:106.7052911, area:"D1"},
+    {cat:"nightlife", code:"N-04", name:"Broma Not A Bar", sub:"Not A Bar Kitchen & Bar", address:"41 Nguyễn Huệ, District 1", notes:"Rooftop hangout above Nguyễn Huệ walking street, DJs and live bands.", lat:10.7727302, lng:106.7046106, area:"D1"},
+    {cat:"nightlife", code:"N-05", name:"Mershe Saigon", address:"21-23 Hồ Tùng Mậu, District 1", notes:"Chill nightclub with rotating DJs spinning EDM and more.", lat:10.7704854, lng:106.7044528, area:"D1"},
+    {cat:"nightlife", code:"N-06", name:"TNR Saigon", address:"57 Đỗ Quang Đẩu, District 1", notes:"Laid-back bar near Bùi Viện with pool tables and DJ nights.", lat:10.7671385, lng:106.6906431, area:"D1"},
+    {cat:"nightlife", code:"N-07", name:"The Observatory", address:"85 Cách Mạng Tháng Tám, District 1", notes:"Underground dance-music club, known for techno and house nights.", lat:10.7722541, lng:106.6913776, area:"D1"},
+    {cat:"nightlife", code:"N-08", name:"Chill Skybar", sub:"Chill Skybar & Dining", address:"AB Tower, 76A Lê Lai, District 1", notes:"Rooftop nightclub and dining on the 26th-27th floor.", lat:10.7705648, lng:106.6943777, area:"D1"},
+    {cat:"nightlife", code:"N-09", name:"Apocalypse Now Saigon", address:"2F Thi Sách, District 1", notes:"Long-running, Vietnam-War-themed bar, a Saigon nightlife institution.", lat:10.777133, lng:106.7059246, area:"D1"},
+    {cat:"nightlife", code:"N-10", name:"Saigon Rooftop Bar", sub:"Saigon Saigon Rooftop Bar, Caravelle Hotel", address:"19-23 Lam Son Square, District 1", notes:"Historic rooftop bar atop the Caravelle Hotel, est. 1959.", lat:10.7763188, lng:106.703532, area:"D1"}
+  ];
+
+  function haversineKm(a, b){
+    const R = 6371;
+    const dLat = (b.lat - a.lat) * Math.PI/180;
+    const dLng = (b.lng - a.lng) * Math.PI/180;
+    const lat1 = a.lat * Math.PI/180, lat2 = b.lat * Math.PI/180;
+    const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  }
+
+  function navUrl(p){
+    return `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+  }
+
+  DATA.forEach(p => p.dist = p.cat === "home" ? 0 : haversineKm(HOME, p));
+  DATA.sort((a,b) => (a.cat === "home" ? -1 : b.cat === "home" ? 1 : a.dist - b.dist));
+
+  const list = document.getElementById("list");
+
+  function cardHTML(p){
+    const distLabel = p.cat === "home" ? "home base" : `${p.dist.toFixed(1)} km from hotel`;
+    return `
+      <article class="card" data-cat="${p.cat}">
+        <div class="stub">
+          ${ICONS[p.cat]}
+          <span class="code">${p.code}</span>
+        </div>
+        <div class="body">
+          <div class="name">${p.name}</div>
+          ${p.sub ? `<div class="sub">${p.sub}</div>` : ""}
+          <div class="meta"><span class="area">${p.area}</span><span>${distLabel}</span></div>
+          <div class="notes">${p.notes}<br>${p.address}</div>
+          <a class="navigate" href="${navUrl(p)}" target="_blank" rel="noopener">Navigate ↗</a>
+        </div>
+      </article>`;
+  }
+
+  list.innerHTML = DATA.map(cardHTML).join("");
+
+  document.getElementById("statHome").textContent = DATA.filter(p=>p.cat==="home").length;
+  document.getElementById("statFashion").textContent = DATA.filter(p=>p.cat==="fashion").length;
+  document.getElementById("statFood").textContent = DATA.filter(p=>p.cat==="food").length;
+  document.getElementById("statNightlife").textContent = DATA.filter(p=>p.cat==="nightlife").length;
+
+  const pills = document.querySelectorAll(".pill");
+  pills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      pills.forEach(p => p.dataset.active = "false");
+      pill.dataset.active = "true";
+      const cat = pill.dataset.cat;
+      document.querySelectorAll(".card").forEach(card => {
+        card.style.display = (cat === "all" || card.dataset.cat === cat) ? "flex" : "none";
+      });
+    });
+  });
+
+  let map, mapInitialized = false;
+  document.getElementById("toggleMap").addEventListener("click", (e) => {
+    const el = document.getElementById("map");
+    el.classList.toggle("open");
+    e.target.textContent = el.classList.contains("open") ? "Hide map" : "Show map";
+    if (el.classList.contains("open") && !mapInitialized) {
+      mapInitialized = true;
+      if (typeof L === "undefined") {
+        el.innerHTML = '<p style="padding:16px;color:var(--muted);font-family:var(--font-mono);font-size:12.5px;">Map library didn\'t load — check your connection, or view this page directly in a browser tab.</p>';
+        return;
+      }
+      try {
+        map = L.map("map", { scrollWheelZoom:false }).setView([HOME.lat, HOME.lng], 14);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+          maxZoom: 19
+        }).addTo(map);
+        DATA.forEach(p => {
+          const icon = L.divIcon({
+            className: "",
+            html: `<span style="display:block;width:14px;height:14px;border-radius:50%;background:${PIN_COLOR[p.cat]};border:2px solid #12131a;"></span>`,
+            iconSize: [14,14]
+          });
+          L.marker([p.lat, p.lng], { icon }).addTo(map)
+            .bindPopup(`<div class="popup-name">${p.name}</div><a class="popup-link" href="${navUrl(p)}" target="_blank" rel="noopener">Navigate ↗</a>`);
+        });
+        setTimeout(() => map.invalidateSize(), 50);
+      } catch (err) {
+        el.innerHTML = '<p style="padding:16px;color:var(--muted);font-family:var(--font-mono);font-size:12.5px;">Couldn\'t load the map right now.</p>';
+        console.error(err);
+      }
+    }
+  });
+</script>
+</body>
+</html>
